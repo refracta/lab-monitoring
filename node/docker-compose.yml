@@ -1,0 +1,57 @@
+services:
+  monitoring-node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: monitoring-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - 9100:9100
+    networks:
+      - monitoring_network
+
+  monitoring-dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.0-3.2.0-ubuntu22.04
+    container_name: monitoring-dcgm-exporter
+    ports:
+      - 9101:9400
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [ gpu ]
+    networks:
+      - monitoring_network
+
+  monitoring-cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: monitoring-cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - 9102:8080
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - monitoring_network
+
+networks:
+  monitoring_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.27.0.0/24

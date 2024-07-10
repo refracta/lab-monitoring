@@ -1,0 +1,73 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring_network
+
+  pushgateway:
+    image: prom/pushgateway:v1.6.2
+    container_name: pushgateway
+    ports:
+      - 9091:9091
+    restart: unless-stopped
+    networks:
+      - monitoring_network
+
+  grafana:
+    image: grafana/grafana:9.5.14-ubuntu
+    container_name: grafana
+    ports:
+      - 9080:3000
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+      - GF_SERVER_ROOT_URL=https://MONITORING_URL
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
+      - GF_RENDERING_SERVER_URL=http://grafana-renderer:8081/render
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana:/etc/grafana/provisioning/datasources
+    networks:
+      - monitoring_network
+
+  grafana-renderer:
+    image: grafana/grafana-image-renderer:master-3988fdc
+    container_name: grafana-renderer
+    ports:
+      - 8081
+    restart: unless-stopped
+    networks:
+      - monitoring_network
+
+  pushgateway-cleaner:
+    image: jorinvo/prometheus-pushgateway-cleaner:0.5.0
+    container_name: pushgateway-cleaner
+    command:
+      - --metric-url=http://PUSHGATEWAY_CLEANER_SERVER:9091/metrics
+      - --expiration-in-minutes=1
+      - --interval-in-minutes=2
+    networks:
+      - monitoring_network
+
+networks:
+  monitoring_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.28.0.0/24
+
+volumes:
+  prometheus_data:
+  grafana_data:
